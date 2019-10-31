@@ -2,19 +2,21 @@ import socket
 import pickle
 import os
 from time import sleep
+import threading
 
 headersize = 16
 
 
 def getport():
-    #return ('conn', 1951, 1996)
-    return ('bind', 1951, 1996)
+    #return ('conn', 1234, 1996)
+    return ('bind', 1234, 1996)
 
 
 
 def socket_send(sock, msg):
     global headersize
-    fmsg = bytes(f"{len(msg):<{headersize}}", 'utf-8')
+    fmsg = bytes(f"{len(msg):<{headersize}}",
+                 'utf-8')
     if type(msg)!=type(fmsg):
         msg = bytes(msg, 'utf-8')
 
@@ -22,7 +24,7 @@ def socket_send(sock, msg):
     
     #print(fmsg)
     sock.send(fmsg)
-    sleep(0.01)
+    sleep(0.1)
 
 def socket_recv(sock):
     global headersize
@@ -54,7 +56,7 @@ def getdir():
 
 
 
-def save_dir(sock, d):
+def save_part(sock, d):
     content = ''
     content = socket_recv(sock)
     #print (content)
@@ -73,15 +75,17 @@ def send_part(sock, d):
 
 
 def recieve_dir(sock):
+    print('Recieving directory started')
     num = int(sock.recv(headersize))
     for _ in range(num):
         d = socket_recv(sock)
         print ('Recieving',d)
-        save_dir(sock, d)
+        save_part(sock, d)
         print (d,'recieved')
 
 
 def send_dir(sock, should_send):
+    print('Sending directory started')
     sock.send(bytes(f"{len(should_send):<{headersize}}",
                     'utf-8'))
     for d in should_send:
@@ -111,6 +115,16 @@ sock1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 
+
+def prioritise(S):
+    L = list(S)
+    L.sort(key = lambda i : i.split('.')[-1][0])
+    return L
+    
+
+
+
+
 while True:
     command, port1, port2 = getport()
 
@@ -120,13 +134,13 @@ while True:
         
     
         socket_send(serversock1, pickle.dumps(getdir()))
-        print('server dir sent')
+        print('server dir sent:')
 
         should_send = pickle.loads(socket_recv(serversock1))
         print('should send recieved:', should_send)
 
-        send_dir(serversock1, should_send)
-        recieve_dir(serversock2)
+        sendthread = threading.Thread(target = send_dir, args = (serversock1, should_send, ))
+        recvthread = threading.Thread(target = recieve_dir, args = (serversock2, ))
 
     elif command == 'conn':
         clientsock1 = connport(sock1, port1)
@@ -136,14 +150,19 @@ while True:
         print('server dir recieved')
 
         curr_dir = getdir()
-        should_recv = recv_dir - curr_dir
-        should_send = curr_dir - recv_dir
+        P = input('Enter priority: ')
+        should_recv = prioritise(recv_dir - curr_dir)
+        should_send = prioritise(curr_dir - recv_dir)
 
         socket_send(clientsock1, pickle.dumps(should_recv))
-        print('should recieve sent')
+        print('should recieve sent:', should_recv)
 
-        recieve_dir(clientsock1)
-        send_dir(clientsock2, should_send)
+        sendthread = threading.Thread(target = send_dir, args = (clientsock2, should_send, ))
+        recvthread = threading.Thread(target = recieve_dir, args = (clientsock1, ))
+    
+    sendthread.start()
+    sleep(0.1)
+    recvthread.start()
 
     print('done')
     break
