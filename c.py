@@ -22,7 +22,6 @@ def socket_send(sock, msg):
 
     fmsg = fmsg+msg
     
-    #print(fmsg)
     sock.send(fmsg)
     sleep(0.1)
 
@@ -59,7 +58,6 @@ def getdir():
 def save_part(sock, d):
     content = ''
     content = socket_recv(sock)
-    #print (content)
     with open(d, 'wb') as file:
         file.write(content)
 
@@ -120,8 +118,6 @@ def prioritise(S):
     L = list(S)
     L.sort(key = lambda i : i.split('.')[-1][0])
     return L
-    
-
 
 
 
@@ -150,7 +146,6 @@ while True:
         print('server dir recieved')
 
         curr_dir = getdir()
-        P = input('Enter priority: ')
         should_recv = prioritise(recv_dir - curr_dir)
         should_send = prioritise(curr_dir - recv_dir)
 
