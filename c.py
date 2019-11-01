@@ -17,9 +17,9 @@ def getport():
 
 
 def logwrite(s, f):
-    log = f'{s},{f},{datetime.now()}'
+    log = f'{s},{str(f)},{datetime.now()}\n'
     print (log)
-    with open('log.txt', 'a') as logfile:
+    with open('log.csv', 'a') as logfile:
         logfile.write(log)
 
 
@@ -30,7 +30,7 @@ def socket_send(sock, msg):
     if type(msg)!=type(lmsg):
         msg = bytes(msg, 'utf-8')
     sock.send(lmsg + msg)
-    sleep(0.1)
+    sleep(0.01)
 
 def socket_recv(sock):
     global headersize
