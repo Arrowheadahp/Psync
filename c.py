@@ -2,9 +2,11 @@ import socket
 import pickle
 import os
 from time import sleep
+from datetime import datetime
 import threading
 
-headersize = 16
+headersize = 8
+socketsize = 1024
 
 
 def getport():
@@ -13,33 +15,27 @@ def getport():
 
 
 
+
+def logwrite(s, f):
+    log = f'{s},{f},{datetime.now()}'
+    print (log)
+    with open('log.txt', 'a') as logfile:
+        logfile.write(log)
+
+
 def socket_send(sock, msg):
     global headersize
-    fmsg = bytes(f"{len(msg):<{headersize}}",
+    lmsg = bytes(f"{len(msg):<{headersize}}",
                  'utf-8')
-    if type(msg)!=type(fmsg):
+    if type(msg)!=type(lmsg):
         msg = bytes(msg, 'utf-8')
-
-    fmsg = fmsg+msg
-    
-    sock.send(fmsg)
+    sock.send(lmsg + msg)
     sleep(0.1)
 
 def socket_recv(sock):
     global headersize
-    full_msg = b''
-    new_msg = True
-    while True:
-        msg = sock.recv(headersize)
-        if new_msg:
-            msglen = int(msg)
-            new_msg = False
-        else:
-            full_msg += msg
-
-        if len(full_msg) == msglen:
-            #print(full_msg)
-            return full_msg
+    msglen = int(sock.recv(headersize))
+    return sock.recv(msglen)
 
 
 def getdir():
@@ -56,38 +52,41 @@ def getdir():
 
 
 def save_part(sock, d):
-    content = ''
-    content = socket_recv(sock)
+    lc = int(sock.recv(headersize))
     with open(d, 'wb') as file:
-        file.write(content)
+        for _ in range(lc):
+            file.write(socket_recv(sock))
 
 
 
 def send_part(sock, d):
     socket_send(sock, d)
     with open(d, 'rb') as f:
-        content = f.read()
-    print ('Sending',d)
-    socket_send(sock, content)
-    print (d,'sent')
+        fullcontent = f.read()
+    content = [fullcontent[i: i+socketsize] for i in range(0, len(fullcontent), socketsize)]
+    lc = len(content)
+    sock.send(bytes(f"{lc:<{headersize}}", 'utf-8'))
+    
+    for c in content:
+        socket_send(sock, c)
 
 
 def recieve_dir(sock):
-    print('Recieving directory started')
+    #print('Recieving directory started')
     num = int(sock.recv(headersize))
     for _ in range(num):
         d = socket_recv(sock)
-        print ('Recieving',d)
         save_part(sock, d)
-        print (d,'recieved')
+        logwrite('recv', d)
+        
 
 
 def send_dir(sock, should_send):
-    print('Sending directory started')
-    sock.send(bytes(f"{len(should_send):<{headersize}}",
-                    'utf-8'))
+    #print('Sending directory started')
+    sock.send(bytes(f"{len(should_send):<{headersize}}", 'utf-8'))
     for d in should_send:
         send_part(sock, d)
+        logwrite('sent', d)
 
 
 def bindport(sock, port):
@@ -116,7 +115,7 @@ sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 def prioritise(S):
     L = list(S)
-    L.sort(key = lambda i : i.split('.')[-1][0])
+    L.sort(key = lambda i : i.split('.')[-1][0], reverse = True)
     return L
 
 
@@ -156,8 +155,7 @@ while True:
         recvthread = threading.Thread(target = recieve_dir, args = (clientsock1, ))
     
     sendthread.start()
-    sleep(0.1)
     recvthread.start()
 
-    print('done')
+    #print('done')
     break
